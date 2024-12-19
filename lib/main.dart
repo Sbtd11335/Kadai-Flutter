@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:kadai/api/Github.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 
+final githubToken = StateProvider((_) => "");
+final repositoryName = StateProvider((_) => "");
+final search = StateProvider((_) => false);
+
 void main() {
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -13,21 +17,21 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final darkTheme = ThemeData.dark().copyWith(
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontSize: 20, color: Colors.white),
-      )
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(fontSize: 20, color: Colors.white),
+        )
     );
     final lightTheme = ThemeData.light().copyWith(
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontSize: 20, color: Colors.black)
-      )
+        textTheme: const TextTheme(
+            bodyMedium: TextStyle(fontSize: 20, color: Colors.black)
+        )
     );
 
     return MaterialApp(
       title: "kadai",
       darkTheme: darkTheme,
       theme: lightTheme,
-      home: const App(),
+      home: const ProviderScope(child: App()),
     );
   }
 }

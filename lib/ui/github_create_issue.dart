@@ -1,29 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../api/Github.dart';
 
-class GithubCreateIssue extends StatefulWidget {
+class GithubCreateIssue extends HookConsumerWidget {
+
   final String repoId;
-  const GithubCreateIssue({ super.key, required this.repoId });
-
-  @override
-  State<StatefulWidget> createState() => _GithubCreateIssue();
-}
-
-class _GithubCreateIssue extends State<GithubCreateIssue> {
-
-  int _counter = 0;
-
-  void _count() {
-    setState(() {
-      _counter++;
-    });
-  }
-  void _reset() {
-    setState(() {
-      _counter = 0;
-    });
-  }
+  const GithubCreateIssue({
+    super.key,
+    required this.repoId
+  });
 
   Widget errorDialog(BuildContext context, String message) {
     return AlertDialog(
@@ -31,21 +18,21 @@ class _GithubCreateIssue extends State<GithubCreateIssue> {
       content: Text(message),
       actions: [
         TextButton(
-          onPressed: (){
-            Navigator.pop(context);
-          },
-          child: const Text("OK")
+            onPressed: (){
+              Navigator.pop(context);
+            },
+            child: const Text("OK")
         )
       ],
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final width = MediaQuery.of(context).size.width;
     const titleTextStyle = TextStyle(
-      fontSize: 32,
-      fontWeight: FontWeight.w500
+        fontSize: 32,
+        fontWeight: FontWeight.w500
     );
     final titleEditController = TextEditingController();
     final bodyEditController = TextEditingController();
@@ -55,6 +42,7 @@ class _GithubCreateIssue extends State<GithubCreateIssue> {
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       shadowColor: const WidgetStatePropertyAll(Colors.transparent),
     );
+    final count = useState(0);
 
     return Scaffold(
       appBar: AppBar(
@@ -68,22 +56,22 @@ class _GithubCreateIssue extends State<GithubCreateIssue> {
             const Text("タイトル", style: titleTextStyle),
             const SizedBox(height: 10),
             TextField(
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-              controller: titleEditController,
-              decoration: const InputDecoration(labelText: "タイトルを入力")
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                controller: titleEditController,
+                decoration: const InputDecoration(labelText: "タイトルを入力")
             ),
             const SizedBox(height: 10),
             const Text("内容", style: titleTextStyle),
             const SizedBox(height: 10),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: TextField(
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                controller: bodyEditController,
-                keyboardType: TextInputType.multiline,
-                decoration: const InputDecoration(
-                  labelText: "タイトルを入力",
-                ),
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: TextField(
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                  controller: bodyEditController,
+                  keyboardType: TextInputType.multiline,
+                  decoration: const InputDecoration(
+                    labelText: "タイトルを入力",
+                  ),
                   maxLines: null,
                 )
             ),
@@ -93,41 +81,41 @@ class _GithubCreateIssue extends State<GithubCreateIssue> {
               height: 50,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  border: Border.all(width: 2, color: Colors.grey),
-                  borderRadius: const BorderRadius.all(Radius.circular(15))
+                    border: Border.all(width: 2, color: Colors.grey),
+                    borderRadius: const BorderRadius.all(Radius.circular(15))
                 ),
                 child: ElevatedButton(
-                  style: buttonStyle,
-                  onPressed: () {
-                    final github = Github(context, null);
-                    final repoId = widget.repoId;
-                    final title = titleEditController.text;
-                    final body = bodyEditController.text;
-                    if (title.isEmpty) {
-                      _reset();
-                      showDialog(
-                        context: context,
-                        builder: (builder) => errorDialog(context, "タイトルが入力されておりません。")
-                      );
-                      return;
-                    }
-                    if (body.isEmpty) {
-                      _reset();
-                      showDialog(
-                          context: context,
-                          builder: (builder) => errorDialog(context, "内容が入力されておりません。")
-                      );
-                      return;
-                    }
-                    _count();
-                    if (_counter == 1) {
-                      github.createIssue(repoId, title, body).then((_) {
-                        SharedAppData.setValue(context, "ReloadIssues", true);
-                        Navigator.pop(context);
-                      });
-                    }
-                  },
-                  child: const Text("作成")
+                    style: buttonStyle,
+                    onPressed: () {
+                      final github = Github(ref, null);
+                      final repoId = this.repoId;
+                      final title = titleEditController.text;
+                      final body = bodyEditController.text;
+                      if (title.isEmpty) {
+                        count.value = 0;
+                        showDialog(
+                            context: context,
+                            builder: (builder) => errorDialog(context, "タイトルが入力されておりません。")
+                        );
+                        return;
+                      }
+                      if (body.isEmpty) {
+                        count.value = 0;
+                        showDialog(
+                            context: context,
+                            builder: (builder) => errorDialog(context, "内容が入力されておりません。")
+                        );
+                        return;
+                      }
+                      count.value++;
+                      if (count.value == 1) {
+                        github.createIssue(repoId, title, body).then((_) {
+                          SharedAppData.setValue(context, "ReloadIssues", true);
+                          Navigator.pop(context);
+                        });
+                      }
+                    },
+                    child: const Text("作成")
                 ),
               ),
             )

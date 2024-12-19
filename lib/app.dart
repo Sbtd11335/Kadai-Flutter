@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:kadai/api/github.dart';
-import 'package:kadai/api/repository.dart';
 import 'package:kadai/scenes/setting.dart';
 import 'package:kadai/ui/github_draw_repositories.dart';
+
+import 'main.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -22,74 +24,13 @@ class App extends StatelessWidget {
           }, icon: const Icon(Icons.settings))
         ],
       ),
-      body: const AppState(),
+      body: const AppHook(),
     );
   }
 }
 
-class AppState extends StatefulWidget {
-  const AppState({super.key});
-
-  @override
-  State<StatefulWidget> createState() => _AppState();
-}
-
-class _AppState extends State<AppState> {
-
-  Github? _github;
-  List<Repository> _repositories = [];
-  int _currentPage = 1;
-  bool isLoading = false;
-  final nameController = TextEditingController();
-
-  void setGithub(Github github) {
-    setState(() {
-      _github = github;
-    });
-  }
-  void setRepositories(List<Repository> repositories) {
-    setState(() {
-      _repositories = repositories;
-    });
-  }
-  void searchRepositories(BuildContext context, String name, Function(bool) isLoading) async {
-    isLoading(true);
-    final token = SharedAppData.getValue(context, "GithubToken", () => "");
-    final github = Github(context, token);
-
-    if (token.isEmpty) {
-      showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            isLoading(false);
-            return _errorDialog(context, "トークンが入力されておりません。\n設定画面からトークンを入力してください。");
-          }
-      );
-    }
-    else {
-      github.getRepositories().then((result) {
-        setRepositories(result.where((repo) {
-          isLoading(false);
-          return repo.name.toLowerCase().contains(name);
-        }).toList());
-      });
-    }
-
-  }
-  void nextPage(int maxPage) {
-    setState(() {
-      if (_currentPage < maxPage) {
-        _currentPage++;
-      }
-    });
-  }
-  void backPage() {
-    setState(() {
-      if (_currentPage > 1) {
-        _currentPage--;
-      }
-    });
-  }
+class AppHook extends HookConsumerWidget {
+  const AppHook({super.key});
 
   AlertDialog _errorDialog(BuildContext context, String message) {
     return AlertDialog(
@@ -97,88 +38,75 @@ class _AppState extends State<AppState> {
       content: Text(message),
       actions: [
         TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: const Text("OK")
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text("OK")
         )
       ],
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final deviceWidth = MediaQuery.of(context).size.width;
-    final scrollController = ScrollController();
-    _github = Github(context, null);
-
-    WidgetsBinding.instance.addPostFrameCallback((_){
-      if (SharedAppData.getValue(context, "RefreshRepositories", () => false)) {
-        searchRepositories(context, nameController.text, (isLoading) {
-          this.isLoading = isLoading;
-        });
-        SharedAppData.setValue(context, "RefreshRepositories", null);
-      }
-    });
+    final nameController = TextEditingController();
+    nameController.text = ref.read(repositoryName);
+    ref.read(search.notifier).state = false;
 
     return GraphQLProvider(
-      client: ValueNotifier(_github!.client),
+      client: ValueNotifier(Github(ref, null).client),
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.only(top: 10.0),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 10.0, right: 10.0),
-                child: SizedBox(
-                  width: deviceWidth,
-                  height: 50.0,
-                  child: Row(children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: nameController,
-                        decoration: const InputDecoration(labelText: "リポジトリを検索"),
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                      )
-                    ),
-                    const SizedBox(width: 10.0),
-                    Expanded(
-                      flex: 1,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                          backgroundColor: Theme.of(context).colorScheme.inversePrimary
-                        ),
-                        onPressed: () {
-                          searchRepositories(context, nameController.text, (isLoading) {
-                            this.isLoading = isLoading;
-                          });
-                          setState(() {
-                            _currentPage = 1;
-                          });
-                        },
-                        child: Text(
-                          "検索",
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface)
-                        )
-                      )
+            padding: const EdgeInsets.only(top: 10.0),
+            child: Column(
+              children: [
+                Padding(
+                    padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+                    child: SizedBox(
+                        width: deviceWidth,
+                        height: 50.0,
+                        child: Row(children: [
+                          Expanded(
+                              flex: 2,
+                              child: TextField(
+                                controller: nameController,
+                                decoration: const InputDecoration(labelText: "リポジトリを検索"),
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                              )
+                          ),
+                          const SizedBox(width: 10.0),
+                          Expanded(
+                              flex: 1,
+                              child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                      backgroundColor: Theme.of(context).colorScheme.inversePrimary
+                                  ),
+                                  onPressed: () {
+                                    final token = ref.watch(githubToken);
+                                    print(token);
+                                    if (token.isEmpty) {
+                                      showDialog(context: context, builder: (context) {
+                                        return _errorDialog(context, "Githubトークンが入力されておりません。\n設定画面よりトークンを入力してください。");
+                                      });
+                                    }
+                                    ref.read(repositoryName.notifier).state = nameController.text;
+                                    ref.read(search.notifier).state = true;
+                                  },
+                                  child: Text(
+                                      "検索",
+                                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface)
+                                  )
+                              )
+                          )
+                        ])
                     )
-                  ])
-                )
-              ),
-              const SizedBox(height: 10.0),
-              GithubDrawRepositories(
-                repositories: _repositories,
-                items: 10,
-                currentPage: _currentPage,
-                nextPage: nextPage,
-                backPage: backPage,
-                scrollController: scrollController,
-                isLoading: isLoading
-              )
-            ],
-          )
+                ),
+                const SizedBox(height: 10.0),
+                const GithubDrawRepositories(items: 5)
+              ],
+            )
         ),
       ),
     );

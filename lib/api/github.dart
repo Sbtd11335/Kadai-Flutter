@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:graphql/client.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:kadai/api/issue_comment.dart';
 import 'package:kadai/api/issue_label.dart';
 import 'package:kadai/api/repository.dart';
 
+import '../main.dart';
 import '../module/Color.dart';
 import 'issue.dart';
 
@@ -12,8 +14,8 @@ class Github {
   late final GraphQLClient client;
   late final String token;
 
-  Github(BuildContext context, String? token) {
-    this.token = token ?? SharedAppData.getValue(context, "GithubToken", () => "");
+  Github(WidgetRef ref, String? token) {
+    this.token = token ?? ref.watch(githubToken);
     final link = HttpLink(
       "https://api.github.com/graphql",
       defaultHeaders: {

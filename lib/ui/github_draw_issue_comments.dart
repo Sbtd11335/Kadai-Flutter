@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kadai/api/issue.dart';
 
 import '../api/Github.dart';
 import '../api/repository.dart';
 
-class GithubDrawIssueComments extends StatelessWidget {
+class GithubDrawIssueComments extends ConsumerWidget {
   final Repository repository;
   final String repoId;
   final Issue issue;
@@ -16,7 +17,7 @@ class GithubDrawIssueComments extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final width = MediaQuery.of(context).size.width;
     final scrollController = ScrollController();
 
@@ -25,7 +26,7 @@ class GithubDrawIssueComments extends StatelessWidget {
         title: Text(issue.title),
       ),
       body: FutureBuilder(
-        future: Github(context, null).getIssueComments(repository.name, issue.number),
+        future: Github(ref, null).getIssueComments(repository.name, issue.number),
         builder: (builder, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

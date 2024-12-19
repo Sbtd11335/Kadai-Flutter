@@ -1,5 +1,6 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:kadai/module/sublist.dart';
 
 import '../api/Github.dart';
@@ -7,44 +8,26 @@ import '../api/issue.dart';
 import '../api/repository.dart';
 import 'github_draw_issue_frame.dart';
 
-class GithubDrawIssues extends StatefulWidget {
+class GithubDrawIssues extends HookConsumerWidget {
 
   final Repository repository;
   final int items;
+
   const GithubDrawIssues({
     super.key,
     required this.repository,
     required this.items
   });
 
-  @override
-  State<StatefulWidget> createState() => _GithubDrawIssues();
-}
-
-class _GithubDrawIssues extends State<GithubDrawIssues> {
-
-  late Future<Set<Object>> _issues;
-  int _currentPage = 1;
-  int _maxPage = 1;
-
-  void _reloadIssues() {
-    setState(() {
-      _issues = Github(context, null).getIssues(widget.repository.name);
-    });
+  void _nextPage(ValueNotifier<int> page, ValueNotifier<int> maxPage) {
+    if (page.value < maxPage.value) {
+      page.value++;
+    }
   }
-  void _nextPage() {
-    setState(() {
-      if (_currentPage < _maxPage) {
-        _currentPage++;
-      }
-    });
-  }
-  void _backPage() {
-    setState(() {
-      if (_currentPage > 1) {
-        _currentPage--;
-      }
-    });
+  void _backPage(ValueNotifier<int> page) {
+    if (page.value > 1) {
+      page.value--;
+    }
   }
   Widget _hidden(bool hide, Widget child) {
     if (!hide) {
@@ -56,106 +39,101 @@ class _GithubDrawIssues extends State<GithubDrawIssues> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    _issues = Github(context, null).getIssues(widget.repository.name);
-    return FutureBuilder(
-      future: _issues,
-      builder: (builder, snapshot) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (SharedAppData.getValue(context, "ReloadIssues", () => false)) {
-            SharedAppData.setValue(context, "ReloadIssues", null);
-            _reloadIssues();
-          }
-        });
+  Widget build(BuildContext context, WidgetRef ref) {
+    final issueLoader = useState(Github(ref, null).getIssues(repository.name));
+    final issues = useFuture(issueLoader.value);
+    final currentPage = useState(1);
+    final maxPage = useState(1);
+    Widget drawFrames = const SizedBox(width: 0, height: 0);
 
-        final Widget drawFrames;
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          drawFrames = const Align(
-              alignment: Alignment.topCenter,
-              child: CircularProgressIndicator()
-          );
+    if (issues.connectionState == ConnectionState.waiting) {
+      drawFrames = const Align(
+        alignment: Alignment.topCenter,
+        child: CircularProgressIndicator()
+      );
+    }
+    else if (issues.hasData) {
+      final data = issues.data;
+      if (data != null && (data.elementAt(1) as List<Issue>).isNotEmpty) {
+        final repoId = data.elementAt(0) as String;
+        final getIssues = data.elementAt(1) as List<Issue>;
+        final List<Column> drawList = [];
+        maxPage.value = (getIssues.length - 1) ~/ items + 1;
+        if (currentPage.value > maxPage.value) {
+          currentPage.value = maxPage.value;
         }
-        else if (snapshot.hasData) {
-          if (snapshot.data != null && (snapshot.data!.elementAt(1) as List<Issue>).isNotEmpty) {
-            final repoId = snapshot.data!.elementAt(0) as String;
-            final issues = snapshot.data!.elementAt(1) as List<Issue>;
-            final List<Column> drawList = [];
-            _maxPage = (issues.length - 1) ~/ widget.items + 1;
-            for (int issueNum = 0; issueNum < issues.length; issueNum++) {
-              drawList.add(Column(
-                children: [
-                  GithubDrawIssueFrame(
-                    repository: widget.repository,
-                    repoId: repoId,
-                    issue: issues[issueNum],
-                  ),
-                  const SizedBox(height: 10.0)
-                ],
-              ));
-            }
-            final displayList = subList(drawList, (_currentPage - 1) * widget.items, _currentPage * widget.items);
-            drawFrames = Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Column(
-                children: [
-                  Expanded(child: Align(
-                      alignment: Alignment.topCenter,
-                      child: RefreshIndicator(
-                        onRefresh: () {
-                         return Future.value([_reloadIssues()]);
-                        },
-                        child: ListView(
-                          children: displayList,
-                        )
-                      )
-                  )),
-                ],
+        for (int issueNum = 0; issueNum < getIssues.length; issueNum++) {
+          drawList.add(Column(
+            children: [
+              GithubDrawIssueFrame(
+                repository: repository,
+                repoId: repoId,
+                issue: getIssues[issueNum],
               ),
-            );
-          }
-          else {
-            return const Align(
+              const SizedBox(height: 10.0)
+            ],
+          ));
+        }
+        final displayList = subList(drawList, (currentPage.value - 1) * items, currentPage.value * items);
+        drawFrames = Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Column(
+            children: [
+              Expanded(child: Align(
                 alignment: Alignment.topCenter,
-                child: Text("Issuesはありません。")
-            );
-          }
-        }
-        else {
-          drawFrames = const Align(
-              alignment: Alignment.topCenter,
-              child: Text("Issuesはありません。")
-          );
-        }
-        return Column (
-          children: [
-            Expanded(child: drawFrames),
-            SizedBox(
-              height: 100,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _hidden(
-                      _currentPage <= 1,
-                      Center(
-                        child: TextButton(onPressed: _backPage, child: const Text("<"))
-                      )
-                    )
-                  ),
-                  Expanded(child: Center(child: Text("$_currentPage / $_maxPage"))),
-                  Expanded(
-                    child: _hidden(
-                      _currentPage >= _maxPage,
-                      Center(
-                        child: TextButton(onPressed: _nextPage, child: const Text(">"))
-                      )
-                    )
+                child: RefreshIndicator(
+                  onRefresh: () {
+                    return Future.value(
+                      (() async {
+                        issueLoader.value = Github(ref, null).getIssues(repository.name);
+                      })()
+                    );
+                  },
+                  child: ListView(
+                    children: displayList,
                   )
-                ],
-              ),
-            )
-          ],
+                )
+              )),
+            ],
+          ),
         );
       }
+      else {
+        drawFrames = const Align(
+          alignment: Alignment.topCenter,
+          child: Text("Issuesはありません。")
+        );
+      }
+    }
+
+    return Column (
+      children: [
+        Expanded(child: drawFrames),
+        SizedBox(
+          height: 100,
+          child: Row(
+            children: [
+              Expanded(
+                child: _hidden(
+                  currentPage.value <= 1,
+                  Center(
+                    child: TextButton(onPressed: () { _backPage(currentPage); }, child: const Text("<"))
+                  )
+                )
+              ),
+              Expanded(child: Center(child: Text("${currentPage.value} / ${maxPage.value}"))),
+              Expanded(
+                child: _hidden(
+                  currentPage.value >= maxPage.value,
+                  Center(
+                    child: TextButton(onPressed: () { _nextPage(currentPage, maxPage); }, child: const Text(">"))
+                  )
+                )
+              )
+            ],
+          ),
+        )
+      ],
     );
   }
 }
